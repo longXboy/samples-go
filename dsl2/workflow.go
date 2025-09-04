@@ -21,33 +21,26 @@ type Workflow struct {
 	Version    string         `yaml:"version,omitempty"`
 	TaskQueue  string         `yaml:"taskQueue,omitempty"`
 	Variables  map[string]any `yaml:"variables,omitempty"`  // 初始变量
-	Root       *Statement     `yaml:"root"`                 // 入口
+	Root       []*Statement   `yaml:"root"`                 // 入口 - 默认顺序执行的语句数组
 	Retry      *RetryPolicy   `yaml:"retry,omitempty"`      // 可选：全局默认重试
 	TimeoutSec int            `yaml:"timeoutSec,omitempty"` // 可选：全局默认超时
 	// Concurrency: 作为 Map 的默认并发窗口（可被 Map 节点覆盖）
 	Concurrency int `yaml:"concurrency,omitempty"`
 }
 
-// Statement：一个节点，要么是 Activity，要么是组合（Sequence/Parallel/Map/While/If）
+// Statement：一个节点，要么是 Activity，要么是组合（Parallel/Map/While/If）
+// 注意：移除了 Sequence，因为默认就是顺序执行
 type Statement struct {
 	ID       string              `yaml:"id,omitempty"` // 可选：便于日志/排障
 	Activity *ActivityInvocation `yaml:"activity,omitempty"`
-	Sequence *Sequence           `yaml:"sequence,omitempty"`
 	Parallel *Parallel           `yaml:"parallel,omitempty"`
 	Map      *Map                `yaml:"map,omitempty"`
 	While    *While              `yaml:"while,omitempty"`
 	If       *If                 `yaml:"if,omitempty"`
 }
 
-// 顺序
-type Sequence struct {
-	Elements []*Statement `yaml:"elements"`
-}
-
-// 并行
-type Parallel struct {
-	Branches []*Statement `yaml:"branches"`
-}
+// 并行 - 直接是Statement数组，与根级别保持一致
+type Parallel []*Statement
 
 // 集合并行（对 items 做并发执行 Body）
 type Map struct {
@@ -155,10 +148,12 @@ func SimpleDSLWorkflow(ctx workflow.Context, wf Workflow) (map[string]any, error
 		return nil, err
 	}
 
-	// 执行
-	if err := wf.Root.execute(ctx, wf, bindings); err != nil {
-		logger.Error("DSL workflow failed", "error", err)
-		return nil, err
+	// 执行根语句数组（顺序执行）
+	for _, stmt := range wf.Root {
+		if err := stmt.execute(ctx, wf, bindings); err != nil {
+			logger.Error("DSL workflow failed", "error", err)
+			return nil, err
+		}
 	}
 
 	logger.Info("DSL workflow completed")
@@ -173,8 +168,6 @@ func (s *Statement) execute(ctx workflow.Context, wf Workflow, bindings map[stri
 	switch {
 	case s.Activity != nil:
 		return s.Activity.execute(ctx, wf, bindings)
-	case s.Sequence != nil:
-		return s.Sequence.execute(ctx, wf, bindings)
 	case s.Parallel != nil:
 		return s.Parallel.execute(ctx, wf, bindings)
 	case s.Map != nil:
@@ -223,25 +216,10 @@ func (a ActivityInvocation) execute(ctx workflow.Context, wf Workflow, bindings 
 
 // ----- Sequence -----
 
-func (s Sequence) execute(ctx workflow.Context, wf Workflow, bindings map[string]any) error {
-	for _, st := range s.Elements {
-		fmt.Printf("Executing sequence element: %+v\n", st)
-
-		if st == nil {
-			return errors.New("sequence has nil element")
-		}
-		if err := st.execute(ctx, wf, bindings); err != nil {
-			return err
-		}
-		fmt.Printf("Finished executing sequence element: %+v\n", st)
-	}
-	return nil
-}
-
 // ----- Parallel -----
 // 采用 copy-on-write；成功分支合并回主 bindings；合并冲突直接报错
 func (p Parallel) execute(ctx workflow.Context, wf Workflow, bindings map[string]any) error {
-	if len(p.Branches) == 0 {
+	if len(p) == 0 {
 		return nil
 	}
 	selector := workflow.NewSelector(ctx)
@@ -252,13 +230,13 @@ func (p Parallel) execute(ctx workflow.Context, wf Workflow, bindings map[string
 		err   error
 	}
 
-	fmt.Printf("Parallel: starting %d branches\n", len(p.Branches))
+	fmt.Printf("Parallel: starting %d branches\n", len(p))
 
 	// 存储所有结果
-	results := make([]mergeResult, 0, len(p.Branches))
+	results := make([]mergeResult, 0, len(p))
 	completed := 0
 
-	for i, st := range p.Branches {
+	for i, st := range p {
 		localBindings := cloneMap(bindings) // 浅拷贝：建议变量保持标量/小对象
 		f := executeAsync(st, ctx, wf, localBindings)
 		branchIndex := i // 捕获循环变量
@@ -275,15 +253,15 @@ func (p Parallel) execute(ctx workflow.Context, wf Workflow, bindings map[string
 		})
 	}
 
-	fmt.Printf("Parallel: waiting for %d branches to complete\n", len(p.Branches))
+	fmt.Printf("Parallel: waiting for %d branches to complete\n", len(p))
 	
 	// 等待所有分支完成
-	for completed < len(p.Branches) {
-		fmt.Printf("Parallel: waiting for completion (%d/%d done)\n", completed, len(p.Branches))
+	for completed < len(p) {
+		fmt.Printf("Parallel: waiting for completion (%d/%d done)\n", completed, len(p))
 		selector.Select(ctx)
 	}
 
-	fmt.Printf("Parallel: all %d branches completed\n", len(p.Branches))
+	fmt.Printf("Parallel: all %d branches completed\n", len(p))
 
 	// 检查是否有错误
 	var firstErr error
@@ -571,11 +549,22 @@ func (w While) execute(ctx workflow.Context, wf Workflow, bindings map[string]an
    =============== 校验 ===============
 */
 
+// Validate performs validation on the workflow structure (public API)
+func (wf Workflow) Validate() error {
+	return wf.validate()
+}
+
 func (wf Workflow) validate() error {
-	if wf.Root == nil {
-		return errors.New("root statement is nil")
+	if len(wf.Root) == 0 {
+		return errors.New("root statement array is empty")
 	}
-	return wf.Root.validate()
+	// 验证所有根语句
+	for i, stmt := range wf.Root {
+		if err := stmt.validate(); err != nil {
+			return fmt.Errorf("root[%d]: %w", i, err)
+		}
+	}
+	return nil
 }
 
 func (s *Statement) validate() error {
@@ -584,9 +573,6 @@ func (s *Statement) validate() error {
 	}
 	cnt := 0
 	if s.Activity != nil {
-		cnt++
-	}
-	if s.Sequence != nil {
 		cnt++
 	}
 	if s.Parallel != nil {
@@ -602,22 +588,15 @@ func (s *Statement) validate() error {
 		cnt++
 	}
 	if cnt != 1 {
-		return fmt.Errorf("statement(id=%s) must have exactly one of activity/sequence/parallel/map/while/if", s.ID)
+		return fmt.Errorf("statement(id=%s) must have exactly one of activity/parallel/map/while/if", s.ID)
 	}
 	if s.Activity != nil {
 		if s.Activity.Name == "" {
 			return errors.New("activity name required")
 		}
 	}
-	if s.Sequence != nil {
-		for _, e := range s.Sequence.Elements {
-			if err := e.validate(); err != nil {
-				return err
-			}
-		}
-	}
 	if s.Parallel != nil {
-		for _, b := range s.Parallel.Branches {
+		for _, b := range *s.Parallel {
 			if err := b.validate(); err != nil {
 				return err
 			}

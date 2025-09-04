@@ -8,197 +8,15 @@ import (
 	"log"
 	"net/http"
 	"time"
-	"errors"
 
+	dsl "github.com/temporalio/samples-go/dsl2"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/workflow"
 	"gopkg.in/yaml.v3"
 )
 
-// DSL 结构体定义（从主模块复制）
-type Workflow struct {
-	Version     string         `yaml:"version,omitempty"`
-	TaskQueue   string         `yaml:"taskQueue,omitempty"`
-	Variables   map[string]any `yaml:"variables,omitempty"`
-	Root        *Statement     `yaml:"root"`
-	Retry       *RetryPolicy   `yaml:"retry,omitempty"`
-	TimeoutSec  int            `yaml:"timeoutSec,omitempty"`
-	Concurrency int            `yaml:"concurrency,omitempty"`
-}
-
-type Statement struct {
-	ID       string              `yaml:"id,omitempty"`
-	Activity *ActivityInvocation `yaml:"activity,omitempty"`
-	Sequence *Sequence           `yaml:"sequence,omitempty"`
-	Parallel *Parallel           `yaml:"parallel,omitempty"`
-	Map      *Map                `yaml:"map,omitempty"`
-	While    *While              `yaml:"while,omitempty"`
-	If       *If                 `yaml:"if,omitempty"`
-}
-
-type Sequence struct {
-	Elements []*Statement `yaml:"elements"`
-}
-
-type Parallel struct {
-	Branches []*Statement `yaml:"branches"`
-}
-
-type Map struct {
-	ItemsRef    string     `yaml:"itemsRef"`
-	ItemVar     string     `yaml:"itemVar,omitempty"`
-	Concurrency int        `yaml:"concurrency,omitempty"`
-	Body        *Statement `yaml:"body"`
-	CollectVar  string     `yaml:"collectVar,omitempty"`
-	FailFast    bool       `yaml:"failFast,omitempty"`
-}
-
-type If struct {
-	Cond Cond       `yaml:"cond"`
-	Then *Statement `yaml:"then"`
-	Else *Statement `yaml:"else,omitempty"`
-}
-
-type While struct {
-	Cond         Cond       `yaml:"cond"`
-	Body         *Statement `yaml:"body"`
-	MaxIters     int        `yaml:"maxIters,omitempty"`
-	SleepSeconds int        `yaml:"sleepSeconds,omitempty"`
-}
-
-type ActivityInvocation struct {
-	Name   string   `yaml:"name"`
-	Args   []Value  `yaml:"args,omitempty"`
-	Result string   `yaml:"result,omitempty"`
-	Opts   *ActOpts `yaml:"opts,omitempty"`
-}
-
-type ActOpts struct {
-	StartToCloseSeconds    int          `yaml:"startToCloseSeconds,omitempty"`
-	ScheduleToCloseSeconds int          `yaml:"scheduleToCloseSeconds,omitempty"`
-	HeartbeatSeconds       int          `yaml:"heartbeatSeconds,omitempty"`
-	Retry                  *RetryPolicy `yaml:"retry,omitempty"`
-}
-
-type RetryPolicy struct {
-	MaxAttempts        int     `yaml:"maxAttempts,omitempty"`
-	InitialIntervalSec int     `yaml:"initialIntervalSec,omitempty"`
-	MaxIntervalSec     int     `yaml:"maxIntervalSec,omitempty"`
-	BackoffCoefficient float64 `yaml:"backoffCoefficient,omitempty"`
-}
-
-type Cond struct {
-	Truthy *Value   `yaml:"truthy,omitempty"`
-	Eq     *Compare `yaml:"eq,omitempty"`
-	Ne     *Compare `yaml:"ne,omitempty"`
-	Not    *Cond    `yaml:"not,omitempty"`
-	Any    []Cond   `yaml:"any,omitempty"`
-	All    []Cond   `yaml:"all,omitempty"`
-}
-
-type Compare struct {
-	Left  Value `yaml:"left"`
-	Right Value `yaml:"right"`
-}
-
-type Value struct {
-	Ref   string   `yaml:"ref,omitempty"`
-	Str   *string  `yaml:"str,omitempty"`
-	Int   *int64   `yaml:"int,omitempty"`
-	Float *float64 `yaml:"float,omitempty"`
-	Bool  *bool    `yaml:"bool,omitempty"`
-}
-
-// 基本的验证函数
-func (wf Workflow) validate() error {
-	if wf.Root == nil {
-		return errors.New("root statement is nil")
-	}
-	return wf.Root.validate()
-}
-
-func (s *Statement) validate() error {
-	if s == nil {
-		return errors.New("nil statement")
-	}
-	cnt := 0
-	if s.Activity != nil {
-		cnt++
-	}
-	if s.Sequence != nil {
-		cnt++
-	}
-	if s.Parallel != nil {
-		cnt++
-	}
-	if s.Map != nil {
-		cnt++
-	}
-	if s.While != nil {
-		cnt++
-	}
-	if s.If != nil {
-		cnt++
-	}
-	if cnt != 1 {
-		return fmt.Errorf("statement must have exactly one of activity/sequence/parallel/map/while/if")
-	}
-	
-	// 基本验证
-	if s.Activity != nil && s.Activity.Name == "" {
-		return errors.New("activity name required")
-	}
-	if s.Sequence != nil {
-		for _, e := range s.Sequence.Elements {
-			if err := e.validate(); err != nil {
-				return err
-			}
-		}
-	}
-	if s.Parallel != nil {
-		for _, b := range s.Parallel.Branches {
-			if err := b.validate(); err != nil {
-				return err
-			}
-		}
-	}
-	if s.Map != nil {
-		if s.Map.Body == nil {
-			return errors.New("map body required")
-		}
-		if err := s.Map.Body.validate(); err != nil {
-			return err
-		}
-		if s.Map.ItemsRef == "" {
-			return errors.New("map itemsRef required")
-		}
-	}
-	if s.While != nil {
-		if s.While.Body == nil {
-			return errors.New("while body required")
-		}
-		if err := s.While.Body.validate(); err != nil {
-			return err
-		}
-	}
-	if s.If != nil {
-		if s.If.Then == nil {
-			return errors.New("if then branch required")
-		}
-		if err := s.If.Then.validate(); err != nil {
-			return err
-		}
-		if s.If.Else != nil {
-			if err := s.If.Else.validate(); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
 // 简化的工作流函数（用于演示）
-func SimpleDSLWorkflow(ctx workflow.Context, wf Workflow) (map[string]any, error) {
+func SimpleDSLWorkflow(ctx workflow.Context, wf dsl.Workflow) (map[string]any, error) {
 	// 这里是一个简化版本，仅用于演示和验证
 	// 实际执行需要完整的 DSL 引擎
 	return map[string]any{
@@ -317,10 +135,6 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
                             <i class="fas fa-code-branch"></i>
                             <span>Parallel</span>
                         </div>
-                        <div class="palette-node" data-type="sequence" draggable="true">
-                            <i class="fas fa-arrow-right"></i>
-                            <span>Sequence</span>
-                        </div>
                     </div>
                 </div>
                 
@@ -418,7 +232,10 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
                 <div class="results-content">
                     <div class="tab-pane active" id="executionResults"></div>
                     <div class="tab-pane" id="yamlOutput">
-                        <pre><code id="yamlCode"></code></pre>
+                        <textarea id="yamlEditor" placeholder="Generated YAML will appear here or paste your own YAML to validate..." style="width: 100%; height: 300px; font-family: monospace; font-size: 12px; border: 1px solid #ddd; padding: 10px; resize: vertical;"></textarea>
+                        <div style="margin-top: 10px;">
+                            <small style="color: #666;">💡 Tip: You can edit this YAML directly and click Validate to check it.</small>
+                        </div>
                     </div>
                     <div class="tab-pane" id="validationResults"></div>
                 </div>
@@ -476,7 +293,7 @@ func (s *Server) handleExecuteWorkflow(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 解析 YAML
-	var workflow Workflow
+	var workflow dsl.Workflow
 	if err := yaml.Unmarshal([]byte(req.YAML), &workflow); err != nil {
 		respondJSON(w, WorkflowResponse{
 			Success: false,
@@ -486,7 +303,7 @@ func (s *Server) handleExecuteWorkflow(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 验证工作流
-	if err := workflow.validate(); err != nil {
+	if err := workflow.Validate(); err != nil {
 		respondJSON(w, WorkflowResponse{
 			Success: false,
 			Error:   fmt.Sprintf("Workflow validation error: %v", err),
@@ -586,22 +403,19 @@ variables:
   x: 1
   y: 2
 root:
-  sequence:
-    elements:
-      - parallel:
-          branches:
-            - activity:
-                name: "DoA"
-                args: [{ ref: "x" }]
-                result: "a"
-            - activity:
-                name: "DoB"
-                args: [{ ref: "y" }]
-                result: "b"
+  - parallel:
       - activity:
-          name: "DoC"
-          args: [{ ref: "a" }, { ref: "b" }]
-          result: "c"`,
+          name: "DoA"
+          args: [{ ref: "x" }]
+          result: "a"
+      - activity:
+          name: "DoB"
+          args: [{ ref: "y" }]
+          result: "b"
+  - activity:
+      name: "DoC"
+      args: [{ ref: "a" }, { ref: "b" }]
+      result: "c"`,
 
 		"Map with Collection": `version: "1.0"
 taskQueue: "demo"
@@ -609,16 +423,16 @@ timeoutSec: 30
 variables:
   urls: ["https://a", "https://b", "https://c"]
 root:
-  map:
-    itemsRef: "urls"
-    itemVar: "url"
-    concurrency: 3
-    collectVar: "pages"
-    body:
-      activity:
-        name: "Fetch"
-        args: [{ ref: "url" }]
-        result: "page"`,
+  - map:
+      itemsRef: "urls"
+      itemVar: "url"
+      concurrency: 3
+      collectVar: "pages"
+      body:
+        activity:
+          name: "Fetch"
+          args: [{ ref: "url" }]
+          result: "page"`,
 
 		"Conditional Branch": `version: "1.0"
 taskQueue: "demo"
@@ -627,23 +441,21 @@ variables:
   x: 5
   testFlag: true
 root:
-  sequence:
-    elements:
-      - if:
-          cond:
-            eq:
-              left: { ref: "x" }
-              right: { int: 5 }
-          then:
-            activity:
-              name: "DoA"
-              args: [{ ref: "x" }]
-              result: "result"
-          else:
-            activity:
-              name: "DoB"
-              args: [{ int: 0 }]
-              result: "result"`,
+  - if:
+      cond:
+        eq:
+          left: { ref: "x" }
+          right: { int: 5 }
+      then:
+        activity:
+          name: "DoA"
+          args: [{ ref: "x" }]
+          result: "result"
+      else:
+        activity:
+          name: "DoB"
+          args: [{ int: 0 }]
+          result: "result"`,
 
 		"While Loop": `version: "1.0"
 taskQueue: "demo"
@@ -651,55 +463,57 @@ timeoutSec: 30
 variables:
   approved: false
 root:
-  while:
-    cond:
-      not:
-        truthy: { ref: "approved" }
-    sleepSeconds: 1
-    maxIters: 3
-    body:
-      activity:
-        name: "MockApprove"
-        result: "approved"`,
+  - while:
+      cond:
+        not:
+          truthy: { ref: "approved" }
+      sleepSeconds: 1
+      maxIters: 3
+      body:
+        activity:
+          name: "MockApprove"
+          result: "approved"`,
 
-		"Complex Nested": `version: "1.0"
+		"Complex Sequential": `version: "1.0"
 taskQueue: "demo"
 timeoutSec: 30
 variables:
   mode: "production"
   items: [1, 2, 3]
 root:
-  sequence:
-    elements:
-      - if:
-          cond:
-            eq:
-              left: { ref: "mode" }
-              right: { str: "production" }
-          then:
-            sequence:
-              elements:
-                - parallel:
-                    branches:
-                      - activity:
-                          name: "ValidateInput"
-                          result: "validated"
-                      - activity:
-                          name: "CheckPermissions"
-                          result: "authorized"
-                - map:
-                    itemsRef: "items"
-                    itemVar: "item"
-                    collectVar: "results"
-                    body:
-                      activity:
-                        name: "ProcessItem"
-                        args: [{ ref: "item" }]
-                        result: "processed"
-          else:
-            activity:
-              name: "DevModeProcess"
-              result: "dev_result"`,
+  - activity:
+      name: "ValidateInput"
+      result: "validated"
+  - if:
+      cond:
+        eq:
+          left: { ref: "mode" }
+          right: { str: "production" }
+      then:
+        parallel:
+          - activity:
+              name: "CheckPermissions"
+              result: "authorized"
+          - activity:
+              name: "LoadConfig"
+              result: "config"
+      else:
+        activity:
+          name: "DevModeSetup"
+          result: "dev_config"
+  - map:
+      itemsRef: "items"
+      itemVar: "item"
+      collectVar: "results"
+      body:
+        activity:
+          name: "ProcessItem"
+          args: [{ ref: "item" }]
+          result: "processed"
+  - activity:
+      name: "FinalizeResults"
+      args: [{ ref: "results" }]
+      result: "final"`,
 	}
 
 	respondJSON(w, examples)

@@ -1,0 +1,46 @@
+# Simplified DSL example - no sequence wrapper needed!
+version: "1.0"
+taskQueue: "demo"
+timeoutSec: 30
+variables:
+  x: 5
+  y: 3
+
+# Root is now directly an array - default sequential execution
+root:
+  - activity:
+      name: "DoA"
+      args: [{ ref: "x" }]
+      result: "result1"
+  
+  - if:
+      cond:
+        eq:
+          left: { ref: "x" }
+          right: { int: 5 }
+      then:
+        activity:
+          name: "DoB"
+          args: [{ ref: "result1" }]
+          result: "result2"
+      else:
+        activity:
+          name: "DoC"
+          args: [{ str: "fallback" }]
+          result: "result2"
+  
+  - parallel:
+      branches:
+        - activity:
+            name: "DoParallelA"
+            args: [{ ref: "result2" }]
+            result: "parallelA"
+        - activity:
+            name: "DoParallelB" 
+            args: [{ ref: "result2" }]
+            result: "parallelB"
+  
+  - activity:
+      name: "DoFinal"
+      args: [{ ref: "parallelA" }, { ref: "parallelB" }]
+      result: "final"

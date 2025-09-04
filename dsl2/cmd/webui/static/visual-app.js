@@ -46,19 +46,9 @@ const NODE_TYPES = {
         icon: 'fas fa-code-branch',
         color: '#2196f3',
         inputs: 1,
-        outputs: -1, // 可变输出
+        outputs: 1, // parallel执行完毕后有一个输出，用于连接后续节点
         properties: {
-            branches: { type: 'number', label: 'Number of Branches', min: 2, max: 10, default: 2 }
-        }
-    },
-    sequence: {
-        title: 'Sequence',
-        icon: 'fas fa-arrow-right',
-        color: '#607d8b',
-        inputs: 1,
-        outputs: -1, // 可变输出
-        properties: {
-            elements: { type: 'number', label: 'Number of Elements', min: 2, max: 10, default: 3 }
+            // 不再需要branches属性，因为并行分支由连接决定
         }
     },
     if: {
@@ -380,9 +370,7 @@ function getNodeDescription(nodeData) {
         case 'map':
             return `Process ${props.itemsRef || 'items'} with concurrency ${props.concurrency || 1}`;
         case 'parallel':
-            return `Execute ${props.branches || 2} branches in parallel`;
-        case 'sequence':
-            return `Execute ${props.elements || 3} elements in sequence`;
+            return `Execute multiple branches in parallel`;
         default:
             return NODE_TYPES[type]?.title || type;
     }
@@ -920,26 +908,207 @@ function generateYAML() {
         taskQueue: "demo",
         timeoutSec: 30,
         variables: {},
-        root: null
+        root: [] // 直接是数组，不再是sequence包装
     };
     
-    // 寻找开始节点
-    let startNode = null;
-    for (let [id, node] of workflowData.nodes) {
-        if (node.type === 'start') {
-            startNode = node;
-            break;
+    console.log("Starting YAML generation, nodes:", workflowData.nodes.size, "connections:", workflowData.connections.length);
+    
+    // 如果没有节点，生成一个默认的示例
+    if (workflowData.nodes.size === 0) {
+        console.log("No nodes found, generating default example");
+        workflow.root = [
+            {
+                activity: {
+                    name: "DoA",
+                    args: [{ int: 42 }],
+                    result: "result"
+                }
+            }
+        ];
+    } else {
+        // 寻找开始节点并按连接顺序构建root数组
+        let startNode = null;
+        for (let [id, node] of workflowData.nodes) {
+            if (node.type === 'start') {
+                startNode = node;
+                break;
+            }
+        }
+        
+        console.log("Start node found:", startNode ? startNode.id : "none");
+        
+        if (startNode) {
+            // 从开始节点开始，构建连接的Statement序列
+            workflow.root = buildStatementSequence(startNode);
+        } else {
+            // 如果没有start节点，但有其他节点，生成所有非start/end节点
+            console.log("No start node, generating from all activity nodes");
+            for (let [id, node] of workflowData.nodes) {
+                if (node.type !== 'start' && node.type !== 'end') {
+                    const statement = buildNodeStructure(node);
+                    if (statement) {
+                        workflow.root.push(statement);
+                    }
+                }
+            }
         }
     }
     
-    if (startNode) {
-        workflow.root = buildNodeStructure(startNode);
-    }
+    console.log("Generated root with", workflow.root.length, "statements");
     
-    const yamlString = generateYAMLString(workflow);
-    document.getElementById('yamlCode').textContent = yamlString;
+    // 生成简单的YAML字符串
+    const yamlString = generateSimpleYAML(workflow);
+    document.getElementById('yamlEditor').value = yamlString;
     
     return workflow;
+}
+
+function generateSimpleYAML(obj) {
+    let yaml = `version: "${obj.version}"
+taskQueue: "${obj.taskQueue}"
+timeoutSec: ${obj.timeoutSec}
+variables: {}
+root:`;
+
+    if (obj.root && obj.root.length > 0) {
+        // 为每个语句生成YAML
+        for (let statement of obj.root) {
+            yaml += '\n  - ';
+            if (statement.activity) {
+                yaml += `activity:
+      name: "${statement.activity.name || 'UnnamedActivity'}"
+      args: ${JSON.stringify(statement.activity.args || [])}
+      result: "${statement.activity.result || 'result'}"`;
+            } else if (statement.parallel) {
+                yaml += `parallel: ${JSON.stringify(statement.parallel)}`;
+            } else {
+                yaml += `activity:
+      name: "Placeholder"
+      result: "result"`;
+            }
+        }
+    } else {
+        // 生成默认示例
+        yaml += `
+  - activity:
+      name: "DoA"
+      args: [{ int: 42 }]
+      result: "result"`;
+    }
+    
+    return yaml;
+}
+
+function buildStatementSequence(startNode) {
+    console.log("Building statement sequence from start node:", startNode.id);
+    
+    // 构建拓扑排序来确保正确的执行顺序
+    function topologicalSort() {
+        const graph = new Map();
+        const inDegree = new Map();
+        const allNodes = new Set();
+        
+        // 初始化图结构
+        for (let [id, node] of workflowData.nodes) {
+            if (node.type !== 'start' && node.type !== 'end') {
+                graph.set(id, []);
+                inDegree.set(id, 0);
+                allNodes.add(id);
+            }
+        }
+        
+        // 构建连接关系
+        for (let conn of workflowData.connections) {
+            const fromNode = workflowData.nodes.get(conn.from);
+            const toNode = workflowData.nodes.get(conn.to);
+            
+            if (fromNode && toNode && 
+                fromNode.type !== 'end' && toNode.type !== 'end' &&
+                toNode.type !== 'start') {
+                
+                // 确保from节点在图中（除了start节点）
+                if (fromNode.type !== 'start') {
+                    if (!graph.has(conn.from)) {
+                        graph.set(conn.from, []);
+                        inDegree.set(conn.from, 0);
+                        allNodes.add(conn.from);
+                    }
+                    // 添加边
+                    if (!graph.get(conn.from).includes(conn.to)) {
+                        graph.get(conn.from).push(conn.to);
+                        inDegree.set(conn.to, inDegree.get(conn.to) + 1);
+                    }
+                } else {
+                    // start节点的连接不影响图结构，只设置目标节点入度为0
+                    // 这部分逻辑在后面的start连接处理中完成
+                }
+            }
+        }
+        
+        // 找出所有从start节点直接连接的节点作为入口
+        const startConnections = workflowData.connections.filter(conn => conn.from === startNode.id);
+        for (let conn of startConnections) {
+            const toNode = workflowData.nodes.get(conn.to);
+            if (toNode && toNode.type !== 'end') {
+                inDegree.set(conn.to, 0); // 从start连接的节点入度设为0
+            }
+        }
+        
+        console.log("Graph structure:", Array.from(graph.entries()));
+        console.log("In-degrees:", Array.from(inDegree.entries()));
+        
+        // Kahn算法进行拓扑排序
+        const queue = [];
+        const result = [];
+        
+        // 找到所有入度为0的节点
+        for (let [nodeId, degree] of inDegree) {
+            if (degree === 0) {
+                queue.push(nodeId);
+            }
+        }
+        
+        console.log("Initial queue (zero in-degree nodes):", queue);
+        
+        while (queue.length > 0) {
+            const current = queue.shift();
+            const node = workflowData.nodes.get(current);
+            
+            if (node) {
+                result.push(node);
+                console.log(`Added node to result: ${current} (${node.type})`);
+                
+                // 减少邻接节点的入度
+                const neighbors = graph.get(current) || [];
+                for (let neighbor of neighbors) {
+                    inDegree.set(neighbor, inDegree.get(neighbor) - 1);
+                    if (inDegree.get(neighbor) === 0) {
+                        queue.push(neighbor);
+                        console.log(`Added to queue: ${neighbor}`);
+                    }
+                }
+            }
+        }
+        
+        console.log(`Topological sort result: ${result.length} nodes`);
+        return result;
+    }
+    
+    // 获取排序后的节点
+    const sortedNodes = topologicalSort();
+    const statements = [];
+    
+    // 按拓扑顺序构建语句
+    for (let node of sortedNodes) {
+        const statement = buildNodeStructure(node);
+        if (statement) {
+            statements.push(statement);
+            console.log(`Added statement for node: ${node.id} (${node.type})`);
+        }
+    }
+    
+    console.log(`Built ${statements.length} statements total`);
+    return statements;
 }
 
 function buildNodeStructure(node) {
@@ -955,9 +1124,7 @@ function buildNodeStructure(node) {
             };
         case 'parallel':
             return {
-                parallel: {
-                    branches: [] // 需要遍历连接来构建
-                }
+                parallel: [] // 简化结构，直接数组不需要branches包装
             };
         // 其他节点类型...
         default:
@@ -977,11 +1144,89 @@ function parseJSONSafely(jsonString) {
 
 function generateYAMLString(obj) {
     // 简化的YAML序列化
-    return JSON.stringify(obj, null, 2).replace(/"/g, '');
+    function yamlify(value, indent = 0) {
+        const spaces = '  '.repeat(indent);
+        
+        if (value === null || value === undefined) {
+            return 'null';
+        }
+        
+        if (typeof value === 'string') {
+            // 简单字符串不需要引号，包含特殊字符的需要引号
+            if (/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(value) || /^[0-9]+$/.test(value)) {
+                return `"${value}"`;
+            }
+            return `"${value}"`;
+        }
+        
+        if (typeof value === 'number' || typeof value === 'boolean') {
+            return String(value);
+        }
+        
+        if (Array.isArray(value)) {
+            if (value.length === 0) {
+                return '[]';
+            }
+            let result = '';
+            for (let i = 0; i < value.length; i++) {
+                result += `\n${spaces}- `;
+                const itemYaml = yamlify(value[i], indent + 1);
+                if (typeof value[i] === 'object' && value[i] !== null && !Array.isArray(value[i])) {
+                    // 对象项需要特殊处理
+                    const lines = itemYaml.split('\n').filter(line => line.trim());
+                    result += lines[0];
+                    for (let j = 1; j < lines.length; j++) {
+                        result += `\n${spaces}  ${lines[j]}`;
+                    }
+                } else {
+                    result += itemYaml;
+                }
+            }
+            return result;
+        }
+        
+        if (typeof value === 'object') {
+            let result = '';
+            const keys = Object.keys(value);
+            for (let i = 0; i < keys.length; i++) {
+                const key = keys[i];
+                const val = value[key];
+                if (i > 0) result += '\n';
+                result += `${spaces}${key}: `;
+                
+                const valYaml = yamlify(val, indent + 1);
+                if (typeof val === 'object' && val !== null) {
+                    if (Array.isArray(val) && val.length > 0) {
+                        result += valYaml;
+                    } else if (!Array.isArray(val)) {
+                        result += `\n${valYaml}`;
+                    } else {
+                        result += valYaml;
+                    }
+                } else {
+                    result += valYaml;
+                }
+            }
+            return result;
+        }
+        
+        return String(value);
+    }
+    
+    return yamlify(obj).trim();
 }
 
 function validateWorkflow() {
-    const yamlContent = document.getElementById('yamlCode').textContent;
+    // 从可编辑的YAML编辑器读取内容，如果为空则先生成
+    let yamlContent = document.getElementById('yamlEditor').value;
+    
+    if (!yamlContent.trim()) {
+        console.log("YAML editor is empty, generating YAML first");
+        generateYAML();
+        yamlContent = document.getElementById('yamlEditor').value;
+    }
+    
+    console.log("Validating YAML:", yamlContent.substring(0, 100) + "...");
     
     fetch('/api/workflow/execute', {
         method: 'POST',
@@ -1146,7 +1391,7 @@ function loadSelectedExample() {
         .then(response => response.json())
         .then(examples => {
             if (examples[selectedExample]) {
-                document.getElementById('yamlCode').textContent = examples[selectedExample];
+                document.getElementById('yamlEditor').value = examples[selectedExample];
                 switchTab('yaml');
                 toggleResultsPanel(true);
                 updateStatus(`Loaded example: ${selectedExample}`);

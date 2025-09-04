@@ -16,3 +16,4 @@ vendor/
 bin/
 .fossa.yml
 *~
+dsl2/cmd/webui
