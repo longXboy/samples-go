@@ -1,0 +1,772 @@
+/* 重置和基础样式 */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background: #f5f5f7;
+    color: #1d1d1f;
+    overflow: hidden;
+}
+
+/* 应用容器 */
+.app-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+/* 顶部工具栏 */
+.toolbar {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 12px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    z-index: 1000;
+}
+
+.toolbar h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+.toolbar h1 i {
+    margin-right: 8px;
+    color: #64ffda;
+}
+
+.toolbar-center {
+    display: flex;
+    gap: 12px;
+}
+
+/* 按钮样式 */
+.btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn-primary {
+    background: #4CAF50;
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #45a049;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+}
+
+.btn-secondary {
+    background: rgba(255,255,255,0.9);
+    color: #333;
+}
+
+.btn-secondary:hover {
+    background: white;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.btn-small {
+    padding: 4px 8px;
+    font-size: 0.8rem;
+    background: none;
+    border: 1px solid #ddd;
+    color: #666;
+}
+
+.btn-small:hover {
+    background: #f0f0f0;
+    border-color: #999;
+}
+
+.form-select {
+    padding: 8px 12px;
+    border: none;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.9);
+    color: #333;
+    font-size: 0.9rem;
+}
+
+/* 主工作区 */
+.main-workspace {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+/* 左侧节点面板 */
+.node-palette {
+    width: 280px;
+    background: white;
+    border-right: 1px solid #e1e5e9;
+    overflow-y: auto;
+    box-shadow: 2px 0 10px rgba(0,0,0,0.05);
+    z-index: 100;
+}
+
+.palette-section {
+    margin-bottom: 20px;
+}
+
+.palette-section h3 {
+    padding: 16px 20px 12px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.palette-section h3 i {
+    margin-right: 8px;
+    color: #667eea;
+}
+
+.node-category {
+    padding: 12px;
+}
+
+.palette-node {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    margin-bottom: 8px;
+    background: #fff;
+    border: 2px solid #e9ecef;
+    border-radius: 12px;
+    cursor: grab;
+    transition: all 0.2s ease;
+    user-select: none;
+}
+
+.palette-node:hover {
+    border-color: #667eea;
+    background: #f8f9ff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+}
+
+.palette-node:active {
+    cursor: grabbing;
+    transform: scale(1.05);
+}
+
+.palette-node i {
+    width: 20px;
+    height: 20px;
+    margin-right: 12px;
+    font-size: 1.1rem;
+    color: #667eea;
+}
+
+.palette-node span {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #333;
+}
+
+/* 工作画布 */
+.workflow-canvas {
+    flex: 1;
+    position: relative;
+    background: #fafbfc;
+    overflow: hidden;
+}
+
+.canvas-grid {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: 
+        radial-gradient(circle, #d1d5db 1px, transparent 1px);
+    background-size: 20px 20px;
+    opacity: 0.5;
+}
+
+.canvas-content {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    padding: 40px;
+}
+
+/* 画布节点 */
+.workflow-node {
+    position: absolute;
+    min-width: 180px;
+    background: white;
+    border: 2px solid #e1e5e9;
+    border-radius: 12px;
+    padding: 16px;
+    cursor: move;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    user-select: none;
+}
+
+.workflow-node:hover {
+    border-color: #667eea;
+    box-shadow: 0 8px 24px rgba(102, 126, 234, 0.15);
+    transform: translateY(-2px);
+}
+
+.workflow-node.selected {
+    border-color: #4CAF50;
+    box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.2);
+}
+
+.workflow-node.dragging {
+    z-index: 1000;
+    transform: rotate(5deg) scale(1.05);
+    opacity: 0.9;
+}
+
+.node-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.node-icon {
+    width: 32px;
+    height: 32px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1rem;
+    margin-right: 12px;
+}
+
+.node-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #333;
+    flex: 1;
+}
+
+.node-body {
+    font-size: 0.85rem;
+    color: #666;
+    line-height: 1.4;
+}
+
+.node-config {
+    margin-top: 8px;
+    font-size: 0.8rem;
+    color: #999;
+}
+
+/* 连接点 */
+.connection-point {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background: #4CAF50;
+    border: 2px solid white;
+    border-radius: 50%;
+    cursor: crosshair;
+    transition: all 0.2s ease;
+    z-index: 10;
+}
+
+.connection-point.input {
+    left: -6px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.connection-point.output {
+    right: -6px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.connection-point:hover {
+    background: #45a049;
+    transform: scale(1.3) translateY(-50%);
+    box-shadow: 0 0 12px rgba(76, 175, 80, 0.4);
+}
+
+.connection-point.connecting {
+    background: #ff9800;
+    box-shadow: 0 0 16px rgba(255, 152, 0, 0.6);
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1) translateY(-50%); }
+    50% { transform: scale(1.2) translateY(-50%); }
+    100% { transform: scale(1) translateY(-50%); }
+}
+
+.connection-point.output:hover {
+    transform: scale(1.3) translateY(-50%);
+}
+
+.connection-point.input:hover {
+    transform: scale(1.3) translateY(-50%);
+}
+
+.connection-point.highlight {
+    background: #4CAF50;
+    box-shadow: 0 0 20px rgba(76, 175, 80, 0.8);
+    transform: scale(1.5) translateY(-50%);
+}
+
+/* 连接线 */
+.connection-line {
+    position: absolute;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.temp-connection {
+    position: absolute;
+    pointer-events: none;
+    z-index: 999;
+}
+
+.connection-path {
+    fill: none;
+    stroke: #667eea;
+    stroke-width: 2;
+    marker-end: url(#arrowhead);
+    transition: stroke 0.2s ease;
+}
+
+.connection-path:hover {
+    stroke: #4CAF50;
+    stroke-width: 3;
+}
+
+/* 右侧属性面板 */
+.properties-panel {
+    width: 320px;
+    background: white;
+    border-left: 1px solid #e1e5e9;
+    display: flex;
+    flex-direction: column;
+    box-shadow: -2px 0 10px rgba(0,0,0,0.05);
+}
+
+.panel-header {
+    padding: 20px;
+    border-bottom: 1px solid #e9ecef;
+    background: #f8f9fa;
+}
+
+.panel-header h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #333;
+}
+
+.panel-header h3 i {
+    margin-right: 8px;
+    color: #667eea;
+}
+
+.panel-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+}
+
+.no-selection {
+    text-align: center;
+    color: #999;
+    padding: 40px 20px;
+}
+
+.no-selection i {
+    font-size: 2rem;
+    margin-bottom: 12px;
+    color: #ddd;
+}
+
+/* 属性表单 */
+.property-group {
+    margin-bottom: 24px;
+}
+
+.property-group h4 {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.form-field {
+    margin-bottom: 16px;
+}
+
+.form-label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #666;
+    margin-bottom: 6px;
+}
+
+.form-input, .form-textarea, .form-select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    transition: border-color 0.2s ease;
+    background: white;
+}
+
+.form-input:focus, .form-textarea:focus, .form-select:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.form-textarea {
+    resize: vertical;
+    min-height: 80px;
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+}
+
+/* 底部面板 */
+.bottom-panel {
+    border-top: 1px solid #e1e5e9;
+    background: white;
+}
+
+.status-bar {
+    padding: 12px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.status-text {
+    font-size: 0.9rem;
+    color: #666;
+}
+
+.status-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.results-container {
+    height: 300px;
+    display: flex;
+    flex-direction: column;
+}
+
+.results-tabs {
+    display: flex;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.tab-btn {
+    padding: 12px 20px;
+    background: none;
+    border: none;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #666;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-bottom: 3px solid transparent;
+}
+
+.tab-btn.active, .tab-btn:hover {
+    color: #667eea;
+    border-bottom-color: #667eea;
+    background: white;
+}
+
+.results-content {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+}
+
+.tab-pane {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    padding: 20px;
+    overflow-y: auto;
+    display: none;
+}
+
+.tab-pane.active {
+    display: block;
+}
+
+.tab-pane pre {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 16px;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    overflow-x: auto;
+}
+
+/* 右键菜单 */
+.context-menu {
+    position: absolute;
+    background: white;
+    border: 1px solid #e1e5e9;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    padding: 8px 0;
+    min-width: 160px;
+    z-index: 2000;
+    display: none;
+}
+
+.menu-item {
+    padding: 10px 16px;
+    font-size: 0.9rem;
+    color: #333;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.menu-item:hover {
+    background: #f8f9fa;
+}
+
+.menu-item[data-action="delete"]:hover {
+    background: #fef2f2;
+    color: #dc2626;
+}
+
+/* 模态框 */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 3000;
+}
+
+.modal.show {
+    display: flex;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+    width: 90%;
+    max-width: 600px;
+    max-height: 80vh;
+    overflow: hidden;
+    animation: modalAppear 0.3s ease;
+}
+
+@keyframes modalAppear {
+    from {
+        opacity: 0;
+        transform: scale(0.9) translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.modal-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid #e9ecef;
+    background: #f8f9fa;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #333;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 1.2rem;
+    color: #666;
+    cursor: pointer;
+    padding: 4px;
+}
+
+.modal-close:hover {
+    color: #333;
+}
+
+.modal-body {
+    padding: 24px;
+    overflow-y: auto;
+    max-height: 50vh;
+}
+
+.modal-footer {
+    padding: 16px 24px;
+    border-top: 1px solid #e9ecef;
+    background: #f8f9fa;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+/* 节点类型特定样式 */
+.workflow-node[data-type="start"] .node-icon {
+    background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+}
+
+.workflow-node[data-type="end"] .node-icon {
+    background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
+}
+
+.workflow-node[data-type="if"] .node-icon {
+    background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+}
+
+.workflow-node[data-type="while"] .node-icon {
+    background: linear-gradient(135deg, #9c27b0 0%, #7b1fa2 100%);
+}
+
+.workflow-node[data-type="parallel"] .node-icon {
+    background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%);
+}
+
+.workflow-node[data-type="map"] .node-icon {
+    background: linear-gradient(135deg, #607d8b 0%, #455a64 100%);
+}
+
+/* 拖拽相关 */
+.drag-preview {
+    position: fixed;
+    pointer-events: none;
+    z-index: 4000;
+    opacity: 0.8;
+    transform: rotate(5deg);
+}
+
+.drop-zone {
+    border: 2px dashed #667eea;
+    background: rgba(102, 126, 234, 0.05);
+}
+
+.drag-over {
+    border-color: #4CAF50;
+    background: rgba(76, 175, 80, 0.1);
+}
+
+/* 响应式设计 */
+@media (max-width: 1200px) {
+    .node-palette {
+        width: 240px;
+    }
+    
+    .properties-panel {
+        width: 280px;
+    }
+}
+
+@media (max-width: 900px) {
+    .toolbar {
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+    
+    .toolbar-center, .toolbar-right {
+        flex: 1;
+        justify-content: center;
+    }
+    
+    .node-palette, .properties-panel {
+        position: absolute;
+        height: 100%;
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+        z-index: 200;
+    }
+    
+    .properties-panel {
+        right: 0;
+        transform: translateX(100%);
+    }
+    
+    .node-palette.show, .properties-panel.show {
+        transform: translateX(0);
+    }
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+
+/* 选择禁用 */
+.workflow-canvas, .node-palette {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}

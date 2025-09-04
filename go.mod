@@ -5,6 +5,7 @@ go 1.23.0
 replace github.com/cactus/go-statsd-client => github.com/cactus/go-statsd-client/v5 v5.0.0
 
 require (
+	github.com/goccy/go-yaml v1.18.0
 	github.com/golang/mock v1.7.0-rc.1
 	github.com/golang/snappy v0.0.4
 	github.com/google/uuid v1.6.0
@@ -58,7 +59,6 @@ require (
 	github.com/fatih/color v1.15.0 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
-	github.com/goccy/go-yaml v1.18.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.2 // indirect
@@ -88,7 +88,6 @@ require (
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/otel/metric v1.34.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	go4.org/intern v0.0.0-20230525184215-6c62f75575cb // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20231121144256-b99613f794b6 // indirect
 	golang.org/x/crypto v0.37.0 // indirect
@@ -103,5 +102,4 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20250218202821-56aae31c358a // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250218202821-56aae31c358a // indirect
 	inet.af/netaddr v0.0.0-20230525184311-b8eac61e914a // indirect
-	sigs.k8s.io/yaml v1.6.0 // indirect
 )

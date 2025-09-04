@@ -28,7 +28,7 @@ type Workflow struct {
 	Concurrency int `yaml:"concurrency,omitempty"`
 }
 
-// Statement：一个节点，要么是 Activity，要么是组合（Sequence/Parallel/Map/While）
+// Statement：一个节点，要么是 Activity，要么是组合（Sequence/Parallel/Map/While/If）
 type Statement struct {
 	ID       string              `yaml:"id,omitempty"` // 可选：便于日志/排障
 	Activity *ActivityInvocation `yaml:"activity,omitempty"`
@@ -36,6 +36,7 @@ type Statement struct {
 	Parallel *Parallel           `yaml:"parallel,omitempty"`
 	Map      *Map                `yaml:"map,omitempty"`
 	While    *While              `yaml:"while,omitempty"`
+	If       *If                 `yaml:"if,omitempty"`
 }
 
 // 顺序
@@ -56,6 +57,13 @@ type Map struct {
 	Body        *Statement `yaml:"body"`
 	CollectVar  string     `yaml:"collectVar,omitempty"` // 可选：收集 Body 产生的某些变量（见注释）
 	FailFast    bool       `yaml:"failFast,omitempty"`
+}
+
+// 条件分支
+type If struct {
+	Cond Cond       `yaml:"cond"`           // 条件表达式
+	Then *Statement `yaml:"then"`           // 条件为真时执行的语句
+	Else *Statement `yaml:"else,omitempty"` // 可选：条件为假时执行的语句
 }
 
 // 条件循环
@@ -173,6 +181,8 @@ func (s *Statement) execute(ctx workflow.Context, wf Workflow, bindings map[stri
 		return s.Map.execute(ctx, wf, bindings)
 	case s.While != nil:
 		return s.While.execute(ctx, wf, bindings)
+	case s.If != nil:
+		return s.If.execute(ctx, wf, bindings)
 	default:
 		return errors.New("invalid statement: empty")
 	}
@@ -502,6 +512,33 @@ func (m Map) execute(ctx workflow.Context, wf Workflow, bindings map[string]any)
 	return firstErr
 }
 
+// ----- If -----
+
+func (i If) execute(ctx workflow.Context, wf Workflow, bindings map[string]any) error {
+	fmt.Printf("If: evaluating condition\n")
+	
+	// 评估条件
+	ok, err := evalCond(i.Cond, bindings)
+	if err != nil {
+		return fmt.Errorf("if condition eval failed: %w", err)
+	}
+	
+	if ok {
+		fmt.Printf("If: condition is true, executing then branch\n")
+		if i.Then != nil {
+			return i.Then.execute(ctx, wf, bindings)
+		}
+	} else {
+		fmt.Printf("If: condition is false, executing else branch\n")
+		if i.Else != nil {
+			return i.Else.execute(ctx, wf, bindings)
+		}
+	}
+	
+	fmt.Printf("If: completed\n")
+	return nil
+}
+
 // ----- While -----
 
 func (w While) execute(ctx workflow.Context, wf Workflow, bindings map[string]any) error {
@@ -561,8 +598,11 @@ func (s *Statement) validate() error {
 	if s.While != nil {
 		cnt++
 	}
+	if s.If != nil {
+		cnt++
+	}
 	if cnt != 1 {
-		return fmt.Errorf("statement(id=%s) must have exactly one of activity/sequence/parallel/map/while", s.ID)
+		return fmt.Errorf("statement(id=%s) must have exactly one of activity/sequence/parallel/map/while/if", s.ID)
 	}
 	if s.Activity != nil {
 		if s.Activity.Name == "" {
@@ -600,6 +640,19 @@ func (s *Statement) validate() error {
 		}
 		if err := s.While.Body.validate(); err != nil {
 			return err
+		}
+	}
+	if s.If != nil {
+		if s.If.Then == nil {
+			return errors.New("if then branch required")
+		}
+		if err := s.If.Then.validate(); err != nil {
+			return err
+		}
+		if s.If.Else != nil {
+			if err := s.If.Else.validate(); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

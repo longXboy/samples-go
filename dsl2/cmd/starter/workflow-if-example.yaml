@@ -1,0 +1,103 @@
+# if-else example workflow
+version: "1.0"
+taskQueue: "demo"
+timeoutSec: 30
+concurrency: 8
+retry:
+  maxAttempts: 3
+  initialIntervalSec: 1
+  maxIntervalSec: 10
+  backoffCoefficient: 2.0
+
+variables:
+  x: 5
+  y: 3
+  testFlag: true
+
+root:
+  sequence:
+    elements:
+      # ---- 1) 基本条件分支：根据 x 值选择不同操作 ----
+      - if:
+          cond:
+            eq:
+              left: { ref: "x" }
+              right: { int: 5 }
+          then:
+            activity:
+              name: "DoA"
+              args: [{ ref: "x" }]
+              result: "result1"
+          else:
+            activity:
+              name: "DoB"
+              args: [{ ref: "y" }]
+              result: "result1"
+
+      # ---- 2) 嵌套条件：先检查 testFlag，再检查数值 ----
+      - if:
+          cond:
+            truthy: { ref: "testFlag" }
+          then:
+            if:
+              cond:
+                eq:
+                  left: { ref: "y" }
+                  right: { int: 3 }
+              then:
+                activity:
+                  name: "DoC"
+                  args: [{ str: "nested-true" }, { ref: "result1" }]
+                  result: "result2"
+              else:
+                activity:
+                  name: "DoC"
+                  args: [{ str: "nested-false" }, { ref: "result1" }]
+                  result: "result2"
+          else:
+            activity:
+              name: "DoC"
+              args: [{ str: "flag-false" }, { str: "default" }]
+              result: "result2"
+
+      # ---- 3) 复合条件示例 ----
+      - if:
+          cond:
+            all:
+              - eq:
+                  left: { ref: "x" }
+                  right: { int: 5 }
+              - eq:
+                  left: { ref: "y" }
+                  right: { int: 3 }
+          then:
+            activity:
+              name: "DoC"
+              args: [{ str: "both-match" }, { ref: "result2" }]
+              result: "final"
+          else:
+            activity:
+              name: "DoC"
+              args: [{ str: "no-match" }, { ref: "result2" }]
+              result: "final"
+
+      # ---- 4) 条件分支中使用 Parallel ----
+      - if:
+          cond:
+            truthy: { ref: "testFlag" }
+          then:
+            parallel:
+              branches:
+                - activity:
+                    name: "DoA"
+                    args: [{ int: 10 }]
+                    result: "parallel1"
+                - activity:
+                    name: "DoB"
+                    args: [{ int: 20 }]
+                    result: "parallel2"
+          else:
+            activity:
+              name: "DoC"
+              args: [{ str: "no-parallel" }, { str: "single" }]
+              result: "parallel1"
