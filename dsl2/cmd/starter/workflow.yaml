@@ -1,0 +1,85 @@
+# example.yaml
+version: "1.0"
+taskQueue: "demo"
+timeoutSec: 30                  # 全局默认 Activity StartToCloseTimeout（秒）
+concurrency: 8                  # 全局默认并发窗口（Map 未显式配置时使用）
+retry:                          # 全局默认重试策略（可被节点级覆盖）
+  maxAttempts: 3
+  initialIntervalSec: 1
+  maxIntervalSec: 10
+  backoffCoefficient: 2.0
+
+variables:                      # 初始变量，可在执行中被节点写入
+  x: 1
+  y: 2
+  urls: ["https://a", "https://b", "https://c", "https://d"]
+  approved: true
+
+root:
+  sequence:
+    elements:
+
+      # ---- 1) 并行执行 DoA(x) 与 DoB(y) ----
+      - parallel:
+          branches:
+            - activity:
+                name: "DoA"
+                args: [{ ref: "x" }]
+                result: "a"
+                opts:
+                  startToCloseSeconds: 5
+                  retry:
+                    maxAttempts: 3
+            - activity:
+                name: "DoB"
+                args: [{ ref: "y" }]
+                result: "b"
+                opts:
+                  startToCloseSeconds: 5
+
+      # ---- 2) 汇合后执行 DoC(a,b) ----
+      - activity:
+          name: "DoC"
+          args: [{ ref: "a" }, { ref: "b" }]
+          result: "c"
+
+      # ---- 3) Map：并发抓取 urls，收集到 pages ----
+      - map:
+          itemsRef: "urls"          # 变量中存放的切片
+          itemVar: "url"            # Body 中当前元素变量名
+          concurrency: 4            # 并发窗口（覆盖全局 concurrency）
+          collectVar: "pages"       # 自动收集每个分支写入的 "page"（或 page_<index>）
+          failFast: true
+          body:
+            activity:
+              name: "Fetch"
+              args: [{ ref: "url" }]
+              result: "page"        # 每个分支写回 page，外层会聚合为 pages
+              opts:
+                startToCloseSeconds: 5
+                retry:
+                  maxAttempts: 2
+                  initialIntervalSec: 1
+                  maxIntervalSec: 5
+                  backoffCoefficient: 2.0
+
+      # ---- 4) While：直到 approved==true 才继续 ----
+      - while:
+          cond:
+            not:
+              truthy: { ref: "approved" }   # 当 approved 不为真时进入循环
+          sleepSeconds: 1
+          maxIters: 5
+          body:
+            activity:
+              name: "MockApprove"
+              # 无入参；返回 bool
+              result: "approved"
+
+      # ---- 5) （可选）对结果 c 再做一次处理（示例）----
+      - activity:
+          name: "DoC"
+          args:
+            - { ref: "c" }
+            - { str: "done" }               # 字面量字符串示例
+          result: "final"
